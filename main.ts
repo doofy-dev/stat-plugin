@@ -4,11 +4,21 @@ import {
 	TFolder
 } from 'obsidian';
 
-import {Chart, BarController, BarElement, CategoryScale, LinearScale} from 'chart.js';
+// import {Chart, registerables} from 'chart.js';
+import Chart from 'chart.js/auto';
+
 import {StateField} from '@codemirror/state';
 import {EditorView, Decoration} from '@codemirror/view';
 import {javascript} from '@codemirror/lang-javascript';
 import {StatPluginSuggest} from "./editor-suggest";
+// import {ChartType} from "chart.js/dist/types";
+// Add this at the top of your file or in a separate types.ts file
+type ChartType = 'bar' | 'line' | 'pie' | 'doughnut' | 'polarArea' | 'radar' | 'scatter' | 'bubble';
+
+interface DataSet {
+	label: string,
+	data: number[],
+}
 
 export default class StatPlugin extends Plugin {
 	// Store all open code blocks for refreshing
@@ -23,7 +33,7 @@ export default class StatPlugin extends Plugin {
 	private debounceInterval = 1000; // ms
 
 	async onload() {
-		Chart.register(BarController, BarElement, CategoryScale, LinearScale);
+		// Chart.register(...registerables);
 
 		// Register CodeMirror extensions for syntax highlighting
 		this.registerEditorExtension(this.createCodeBlockExtension());
@@ -377,20 +387,52 @@ export default class StatPlugin extends Plugin {
 					},
 
 					// Chart.js integration
-					chart: (label: string, values: number[], labels: string[]) => {
+					chart: (label: string, datasets: DataSet[], labels: string[], type: ChartType = "bar") => {
 						const canvas = outputContainer.createEl('canvas');
+						canvas.style.cursor = 'pointer';
 						const ctx = canvas.getContext('2d');
 						if (ctx) {
 							new Chart(ctx, {
-								type: 'bar',
+								type: type,
 								data: {
 									labels: labels,
-									datasets: [{
-										label: label,
-										data: values,
-										backgroundColor: 'rgba(54, 162, 235, 0.2)',
-									}]
+									datasets: datasets.map((dataset, index) => ({
+										label: dataset.label,
+										data: dataset.data,
+										borderWidth: 1,
+										borderColor: this.isDarkMode() ? 'rgba(255, 255, 255, 0.7)' : 'rgba(20, 20, 20, 0.7)',
+										backgroundColor: this.getColor(index),
+									}))
+								},
+								options: {
+									scales: {
+										x: {
+											grid: {
+												color: this.isDarkMode()
+													? 'rgba(255, 255, 255, 0.1)' // Subtle white grid for dark mode
+													: 'rgba(0, 0, 0, 0.1)'      // Subtle black grid for light mode
+											}
+										},
+										y: {
+											grid: {
+												color: this.isDarkMode()
+													? 'rgba(255, 255, 255, 0.1)'
+													: 'rgba(0, 0, 0, 0.1)'
+											}
+										}
+									},
+									// Additional chart options
+									plugins: {
+										legend: {
+											labels: {
+												color: this.isDarkMode()
+													? 'rgba(255, 255, 255, 0.8)'
+													: 'rgba(0, 0, 0, 0.8)'
+											}
+										}
+									}
 								}
+
 							});
 						}
 						return canvas;
@@ -419,6 +461,54 @@ export default class StatPlugin extends Plugin {
 			errorEl.style.color = 'red';
 		}
 	}
+
+	private isDarkMode(): boolean {
+		return document.body.classList.contains('theme-dark');
+	}
+
+	private getColor(index: number): string {
+		const darkModeColors = [
+			'rgba(78, 121, 167, 0.7)',    // Blue
+			'rgba(242, 142, 43, 0.7)',    // Orange
+			'rgba(225, 87, 89, 0.7)',     // Red
+			'rgba(118, 183, 178, 0.7)',   // Teal
+			'rgba(89, 161, 79, 0.7)',     // Green
+			'rgba(237, 201, 72, 0.7)',    // Yellow
+			'rgba(176, 122, 161, 0.7)',   // Purple
+			'rgba(255, 157, 167, 0.7)',   // Pink
+			'rgba(156, 117, 95, 0.7)',    // Brown
+			'rgba(186, 176, 172, 0.7)'    // Gray
+		];
+		const lightModeColors = [
+			'rgba(0, 114, 178, 0.7)',     // Blue
+			'rgba(230, 159, 0, 0.7)',     // Orange
+			'rgba(204, 51, 17, 0.7)',     // Red
+			'rgba(0, 158, 115, 0.7)',     // Green
+			'rgba(116, 83, 165, 0.7)',    // Purple
+			'rgba(240, 228, 66, 0.7)',    // Yellow
+			'rgba(0, 136, 153, 0.7)',     // Teal
+			'rgba(213, 94, 0, 0.7)',      // Rust
+			'rgba(86, 180, 233, 0.7)',    // Light Blue
+			'rgba(106, 61, 154, 0.7)'     // Indigo
+		];
+
+		const colors = this.isDarkMode() ? darkModeColors : lightModeColors;
+		return colors[index % colors.length];
+	}
+
+	private getObsidianAccentColor(): string {
+		// Get the accent color CSS variable
+		const accentColor = getComputedStyle(document.body).getPropertyValue('--interactive-accent');
+
+		// If the accent color is available, return it
+		if (accentColor && accentColor.trim() !== '') {
+			return accentColor.trim();
+		}
+
+		// Fallback to a default color if the accent color isn't available
+		return 'rgba(54, 162, 235, 0.7)';
+	}
+
 
 	// Refresh a specific code block
 	private refreshCodeBlock(instanceId: string) {
