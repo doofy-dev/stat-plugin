@@ -387,7 +387,7 @@ export default class StatPlugin extends Plugin {
 					},
 
 					// Chart.js integration
-					chart: (label: string, datasets: DataSet[], labels: string[], type: ChartType = "bar") => {
+					chart: (datasets: DataSet[], labels: string[], type: ChartType = "bar") => {
 						const canvas = outputContainer.createEl('canvas');
 						canvas.style.cursor = 'pointer';
 						const ctx = canvas.getContext('2d');
